@@ -109,7 +109,6 @@ class UnoGame:
             self.replenish_deck()
         if self.deck:
             self.players[player_index].append(self.deck.pop())
-            #print("WHAH WHA WEE 33333")
 
             return True, "Card drawn."
         else:
@@ -140,10 +139,8 @@ class UnoGame:
             self.next_player()
         elif card.type == "plus4":
             # The next player draws 4 cards and loses their turn
-            #print("WHAH WHA WEE WHA111111111")
 
             self.draw_cards((self.current_player + self.direction) % self.num_players, 4)
-            #print("WHAH WHA WEE WHA222222")
             self.next_player()
             return True, "Color selection needed."
         elif card.type == "wild":
