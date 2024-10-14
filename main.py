@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import Qt
 import sys
-from UnoGame import UnoGame  # Ensure this matches the file name and case
+from UnoGame import UnoGame
 
 class ColorDialog(QDialog):
     def __init__(self, parent=None):
@@ -39,10 +39,13 @@ class UnoGameWindow(QWidget):
         self.uno_game = UnoGame(num_players)  # Initialize the game
         self.num_players = num_players
         self.init_ui()
+        self.set_background_image("assets/backgrounds/Background2.png")
+
 
     def init_ui(self):
         self.setWindowTitle("Uno Game")
         self.setGeometry(100, 100, 1000, 600)  # Width x Height
+
 
         # Main layout
         main_layout = QVBoxLayout()
@@ -105,7 +108,7 @@ class UnoGameWindow(QWidget):
         self.play_button.clicked.connect(self.play_selected_card)
         action_layout.addWidget(self.play_button)
 
-        # Draw Card
+        # Draw Card Button at Bottom of Screen
         # self.draw_button = QPushButton('Draw Card', self)
         # self.draw_button.clicked.connect(self.draw_card)
         # action_layout.addWidget(self.draw_button)
@@ -113,6 +116,16 @@ class UnoGameWindow(QWidget):
         main_layout.addLayout(action_layout)
 
         self.setLayout(main_layout)
+
+    def set_background_image(self, image_path):
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-image: url({image_path});
+                background-position: center;
+                background-repeat: no-repeat;
+                background-size: cover;
+            }}
+        """)
 
     def on_deck_clicked(self, event):
         self.draw_card()
@@ -210,7 +223,7 @@ class UnoGameWindow(QWidget):
         if winner != -1:
             QMessageBox.information(self, "Game Over", f"Player {winner + 1} wins!")
             self.play_button.setEnabled(False)
-            self.draw_button.setEnabled(False)
+            #self.draw_button.setEnabled(False)
             QApplication.quit()
         else:
             self.update_current_player_label()
@@ -233,6 +246,6 @@ class UnoGameWindow(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = UnoGameWindow(num_players=4)  # You can change the number of players here
+    window = UnoGameWindow(num_players=4)
     window.show()
     sys.exit(app.exec())
