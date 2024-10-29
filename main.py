@@ -3,10 +3,67 @@ from PySide6.QtWidgets import (
     QApplication, QLabel, QVBoxLayout, QWidget, QPushButton, QDialog,
     QHBoxLayout, QMessageBox, QGridLayout, QListWidget, QListWidgetItem
 )
-from PySide6.QtGui import QPixmap, QIcon
-from PySide6.QtCore import Qt
-import sys
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtGui import QPixmap, QIcon, QPainter
+from PySide6.QtCore import Qt, QUrl, QThread
+import sys, os
 from UnoGame import UnoGame
+
+class StartMenu(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Game Menu")
+        self.setFixedSize(300, 200)
+
+        # Layout for buttons
+        layout = QVBoxLayout()
+
+        # Title label
+        title = QLabel("Welcome to Uno Game!")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        # Play button
+        play_button = QPushButton("Play")
+        play_button.clicked.connect(self.start_game)
+        layout.addWidget(play_button)
+
+        # Info button
+        info_button = QPushButton("Info")
+        info_button.clicked.connect(self.show_info)
+        layout.addWidget(info_button)
+
+        # Quit button
+        quit_button = QPushButton("Quit")
+        quit_button.clicked.connect(self.close_game)
+        layout.addWidget(quit_button)
+
+        self.setLayout(layout)
+
+    def start_game(self):
+        self.hide()  # Hide menu when game starts
+        self.game_window = UnoGameWindow()
+        self.game_window.show()
+
+    def show_info(self):
+        self.info_window = InfoWindow()
+        self.info_window.show()
+
+    def close_game(self):
+        QApplication.instance().quit()
+
+class InfoWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Game Info")
+        self.setFixedSize(300, 200)
+
+        layout = QVBoxLayout()
+        info_label = QLabel("This is where the game info will go.")
+        info_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(info_label)
+
+        self.setLayout(layout)
 
 class ColorDialog(QDialog):
     def __init__(self, parent=None):
@@ -17,7 +74,7 @@ class ColorDialog(QDialog):
         layout = QVBoxLayout()
         button_layout = QHBoxLayout()
 
-        # Create buttons for each color
+        # Buttons for each color
         colors = ['red', 'blue', 'green', 'yellow']
         for color in colors:
             button = QPushButton(color.capitalize())
@@ -31,21 +88,42 @@ class ColorDialog(QDialog):
 
     def set_color(self, color):
         self.selected_color = color
-        self.accept()  # Close the dialog with an accepted status
+        self.accept()
 
 class UnoGameWindow(QWidget):
     def __init__(self, num_players=3):
         super().__init__()
-        self.uno_game = UnoGame(num_players)  # Initialize the game
+        self.uno_game = UnoGame(num_players)
         self.num_players = num_players
-        self.init_ui()
-        self.set_background_image("assets/backgrounds/Background2.png")
 
+        self.background_image = QPixmap("assets/backgrounds/Background10.png")
+
+        self.background_music_player = QMediaPlayer()
+        self.background_audio_output = QAudioOutput()
+        self.background_music_player.setAudioOutput(self.background_audio_output)
+        self.background_audio_output.setVolume(0.05)
+        self.setup_background_music()
+
+        self.sfx_player = QMediaPlayer()
+        self.sfx_audio_output = QAudioOutput()
+        self.sfx_player.setAudioOutput(self.sfx_audio_output)
+
+        self.init_ui()
+
+    def setup_background_music(self):
+        music_file_path = os.path.join(os.getcwd(), "sounds", "backgroundMusic.wav")
+        self.background_music_player.setSource(QUrl.fromLocalFile(music_file_path))
+        self.background_music_player.setLoops(QMediaPlayer.Loops.Infinite)
+        self.background_music_player.play()
+
+    def play_sound_effect(self, sound_file):
+        file_path = os.path.join(os.getcwd(), "sounds", sound_file)
+        self.sfx_player.setSource(QUrl.fromLocalFile(file_path))
+        self.sfx_player.play()
 
     def init_ui(self):
         self.setWindowTitle("Uno Game")
         self.setGeometry(100, 100, 1000, 600)  # Width x Height
-
 
         # Main layout
         main_layout = QVBoxLayout()
@@ -67,7 +145,7 @@ class UnoGameWindow(QWidget):
         self.super_deck_label.setPixmap(super_deck_pixmap)
         self.super_deck_label.setAlignment(Qt.AlignCenter)
         self.super_deck_label.setCursor(Qt.PointingHandCursor)  # Change cursor to pointer
-        self.super_deck_label.mousePressEvent = self.on_deck_clicked  # Connect click event
+        self.super_deck_label.mousePressEvent = self.on_super_deck_clicked  # Connect click event
         top_layout.addWidget(self.super_deck_label)
 
         # Discard Pile
@@ -108,14 +186,17 @@ class UnoGameWindow(QWidget):
         self.play_button.clicked.connect(self.play_selected_card)
         action_layout.addWidget(self.play_button)
 
-        # Draw Card Button at Bottom of Screen
-        # self.draw_button = QPushButton('Draw Card', self)
-        # self.draw_button.clicked.connect(self.draw_card)
-        # action_layout.addWidget(self.draw_button)
-
         main_layout.addLayout(action_layout)
 
         self.setLayout(main_layout)
+
+    def paintEvent(self, event):
+            """
+            Override the paint event to draw the background image.
+            """
+            painter = QPainter(self)
+
+            painter.drawPixmap(self.rect(), self.background_image)
 
     def set_background_image(self, image_path):
         self.setStyleSheet(f"""
@@ -130,12 +211,36 @@ class UnoGameWindow(QWidget):
     def on_deck_clicked(self, event):
         self.draw_card()
 
+    def on_super_deck_clicked(self, event):
+        if self.uno_game.super_deck:
+            super_card = self.uno_game.super_deck.pop()  # Draw from the super deck
+            self.uno_game.players[self.uno_game.current_player].append(super_card)
+            self.status_label.setText("Super card drawn!")
+            self.update_player_hand()  # Update hand to show the new super card
+            self.uno_game.current_player = (self.uno_game.current_player + self.uno_game.direction) % self.num_players
+            self.update_current_player_label()  # Update the label to show the next player's turn
+            self.update_player_hand()  # Update the hand to show the next player's cards
+        else:
+            QMessageBox.warning(self, "Super Deck Empty", "No super cards left to draw.")
+
+    def draw_card(self):
+        self.play_sound_effect("DrawCard.wav")
+        success, message = self.uno_game.draw_card(self.uno_game.current_player)
+        if success:
+            self.status_label.setText(message)
+            self.update_player_hand()  # Update the current player's hand after drawing
+            # Switch to the next player
+            self.uno_game.current_player = (self.uno_game.current_player + self.uno_game.direction) % self.num_players
+            self.update_current_player_label()  # Update the label to show the next player's turn
+            self.update_player_hand()  # Update the hand to show the next player's cards
+        else:
+            QMessageBox.warning(self, "Draw Failed", message)
+
     def update_current_player_label(self):
         current_player = self.uno_game.current_player + 1
         self.current_player_label.setText(f"Player {current_player}'s Turn")
 
     def update_player_hand(self):
-        # Clear existing hand layout
         for i in reversed(range(self.hand_layout.count())):
             widget = self.hand_layout.itemAt(i).widget()
             if widget is not None:
@@ -155,29 +260,22 @@ class UnoGameWindow(QWidget):
             button.setIconSize(pixmap.size())
             button.setCheckable(True)
             button.setFixedSize(90, 130)
-            button.card_index = idx  # Custom attribute to track card index
+            button.card_index = idx
             self.hand_layout.addWidget(button)
             self.card_buttons.append(button)
 
-    def draw_card(self):
-        success, message = self.uno_game.draw_card(self.uno_game.current_player)
-        if success:
-            self.status_label.setText(message)
-            self.update_player_hand()  # Update the current player's hand after drawing
-            # Switch to the next player
-            self.uno_game.current_player = (self.uno_game.current_player + self.uno_game.direction) % self.num_players
-            self.update_current_player_label()  # Update the label to show the next player's turn
-            self.update_player_hand()  # Update the hand to show the next player's cards
-        else:
-            QMessageBox.warning(self, "Draw Failed", message)
 
     def update_discard_pile(self):
         top_card = self.uno_game.top_card
-        discard_image_path = f'assets/cards/{top_card.color}_{top_card.type}.png'
+        if top_card.color == "super":
+            discard_image_path = f'assets/cards/super_{top_card.type}.png'  # Super card image
+        else:
+            discard_image_path = f'assets/cards/{top_card.color}_{top_card.type}.png'
         pixmap = QPixmap(discard_image_path).scaled(100, 150, Qt.KeepAspectRatio)
         self.discard_label.setPixmap(pixmap)
 
     def play_selected_card(self):
+
         selected_buttons = [btn for btn in self.card_buttons if btn.isChecked()]
         if not selected_buttons:
             QMessageBox.warning(self, "No Selection", "Please select a card to play.")
@@ -194,16 +292,15 @@ class UnoGameWindow(QWidget):
             self.status_label.setText(message)
             if "Color selection needed" in message:
                 self.prompt_color_selection()  # Wild/Plus4 card played, choose a new color
-                # After color is selected, update the discard pile with the special image
-                # selected_color = self.uno_game.top_card.color  # Retrieve the selected color
-                # special_image_path = f'assets/cards/card_selected_{selected_color}.png'
-                # self.discard_label.setPixmap(QPixmap(special_image_path).scaled(100, 150, Qt.KeepAspectRatio))
             else:
                 self.update_discard_pile()
                 self.next_turn()
 
         else:
             QMessageBox.warning(self, "Invalid Move", message)
+
+        self.play_sound_effect("PlayCard.wav")
+
 
     def prompt_color_selection(self):
         dialog = ColorDialog(self)
@@ -246,6 +343,8 @@ class UnoGameWindow(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = UnoGameWindow(num_players=4)
-    window.show()
+    menu = StartMenu()
+    menu.show()
+    #window = UnoGameWindow(num_players=4)
+    #window.show()
     sys.exit(app.exec())
