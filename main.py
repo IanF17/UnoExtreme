@@ -1,10 +1,10 @@
-# main.py
+ # main.py
 from PySide6.QtWidgets import (
     QApplication, QLabel, QVBoxLayout, QWidget, QPushButton, QDialog,
     QHBoxLayout, QMessageBox, QGridLayout, QListWidget, QListWidgetItem
 )
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PySide6.QtGui import QPixmap, QIcon, QPainter
+from PySide6.QtGui import QPixmap, QIcon, QPainter, QFont
 from PySide6.QtCore import Qt, QUrl, QThread
 import sys, os
 from UnoGame import UnoGame
@@ -58,8 +58,9 @@ class InfoWindow(QWidget):
         self.setWindowTitle("Game Info")
         self.setFixedSize(300, 200)
 
+        #Info Menu Option
         layout = QVBoxLayout()
-        info_label = QLabel("This is where the game info will go.")
+        info_label = QLabel("Welcome to my adaptation of the classic game Uno!\n\nGameplay persists as normal, with the twist of Super \nCards added to the game. These Super Cards can\n be played at any time, like wild cards, and may have\n drastic effects on the game. Enjoy!")
         info_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(info_label)
 
@@ -91,12 +92,13 @@ class ColorDialog(QDialog):
         self.accept()
 
 class UnoGameWindow(QWidget):
-    def __init__(self, num_players=3):
+    def __init__(self, num_players=4):
         super().__init__()
         self.uno_game = UnoGame(num_players)
         self.num_players = num_players
 
-        self.background_image = QPixmap("assets/backgrounds/Background10.png")
+        # Set up background and music
+        self.background_image = QPixmap("assets/backgrounds/Background12.png")
 
         self.background_music_player = QMediaPlayer()
         self.background_audio_output = QAudioOutput()
@@ -168,7 +170,7 @@ class UnoGameWindow(QWidget):
         middle_layout.addWidget(self.current_player_label)
 
         # Game Status
-        self.status_label = QLabel("Game started!")
+        self.status_label = QLabel(" ") #Game Started!
         middle_layout.addWidget(self.status_label)
 
         main_layout.addLayout(middle_layout)
@@ -190,6 +192,7 @@ class UnoGameWindow(QWidget):
 
         self.setLayout(main_layout)
 
+    # Draws background image in
     def paintEvent(self, event):
             """
             Override the paint event to draw the background image.
@@ -208,14 +211,17 @@ class UnoGameWindow(QWidget):
             }}
         """)
 
+    # Draw a card
     def on_deck_clicked(self, event):
         self.draw_card()
 
+    # Draw a super card
     def on_super_deck_clicked(self, event):
         if self.uno_game.super_deck:
             super_card = self.uno_game.super_deck.pop()  # Draw from the super deck
             self.uno_game.players[self.uno_game.current_player].append(super_card)
-            self.status_label.setText("Super card drawn!")
+            self.play_sound_effect("DrawCard.wav")
+            #self.status_label.setText("Super card drawn!")
             self.update_player_hand()  # Update hand to show the new super card
             self.uno_game.current_player = (self.uno_game.current_player + self.uno_game.direction) % self.num_players
             self.update_current_player_label()  # Update the label to show the next player's turn
@@ -223,6 +229,7 @@ class UnoGameWindow(QWidget):
         else:
             QMessageBox.warning(self, "Super Deck Empty", "No super cards left to draw.")
 
+    # Draw a normal card
     def draw_card(self):
         self.play_sound_effect("DrawCard.wav")
         success, message = self.uno_game.draw_card(self.uno_game.current_player)
@@ -236,9 +243,18 @@ class UnoGameWindow(QWidget):
         else:
             QMessageBox.warning(self, "Draw Failed", message)
 
+    # Displays which player's turn it is
     def update_current_player_label(self):
         current_player = self.uno_game.current_player + 1
-        self.current_player_label.setText(f"Player {current_player}'s Turn")
+
+        self.current_player_label.setText(f"    Player {current_player}'s Turn")
+
+        # Set the font: make it larger, and choose a fun font
+        font = QFont("Comic Sans MS", 20, QFont.Bold)  # You can change "Comic Sans MS" to any other font
+        self.current_player_label.setFont(font)
+
+        # Set the color of the text
+        self.current_player_label.setStyleSheet("QLabel { color: #10123a; }")
 
     def update_player_hand(self):
         for i in reversed(range(self.hand_layout.count())):
@@ -264,16 +280,17 @@ class UnoGameWindow(QWidget):
             self.hand_layout.addWidget(button)
             self.card_buttons.append(button)
 
-
+    # Discard pile manager
     def update_discard_pile(self):
         top_card = self.uno_game.top_card
-        if top_card.color == "super":
+        if top_card.type == "chiefskip" or top_card.type == "doubleplay" or top_card.type == "extplayall" or top_card.type == "intplayall":
             discard_image_path = f'assets/cards/super_{top_card.type}.png'  # Super card image
         else:
             discard_image_path = f'assets/cards/{top_card.color}_{top_card.type}.png'
         pixmap = QPixmap(discard_image_path).scaled(100, 150, Qt.KeepAspectRatio)
         self.discard_label.setPixmap(pixmap)
 
+    # Button to play a selected card
     def play_selected_card(self):
 
         selected_buttons = [btn for btn in self.card_buttons if btn.isChecked()]
@@ -302,6 +319,7 @@ class UnoGameWindow(QWidget):
         self.play_sound_effect("PlayCard.wav")
 
 
+    # Color selection when a wild card is played
     def prompt_color_selection(self):
         dialog = ColorDialog(self)
         if dialog.exec() == QDialog.Accepted:
